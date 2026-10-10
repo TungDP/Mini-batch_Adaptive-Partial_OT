@@ -149,7 +149,6 @@ home_*.txt
 *.jpeg
 *.zip
 *.npz
-*.txt
 *.txt.bak
 *.DS_Store
 *.CONTAMINATED*
@@ -160,3 +159,6 @@ init
 
 # Running experiments
 *_locks
+
+# Data
+data/*

@@ -1,0 +1,11 @@
+# Python 3.12.13
+numpy==2.4.4
+scipy==1.17.1
+matplotlib==3.10.8
+geomloss==0.2.6
+pot==0.9.6
+cvxpy==1.8.2
+torch==2.11.0
+torchvision==0.26.0
+tqdm==4.67.3
+imageio
