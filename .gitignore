@@ -162,3 +162,9 @@ init
 
 # Data
 data/*
+# Experiment outputs
+results/
+
+# Small assets the code needs (images are otherwise ignored above)
+!src/GradientFlow/data/*.png
+!src/ColorTransfer/images/*.jpg
