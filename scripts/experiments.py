@@ -8,7 +8,8 @@
     E6  flow_color    gradient flow + color transfer (CPU)
 
 Hyperparameters follow m-POT (Nguyen et al., ICML 2022, App. D) and its reference code;
-the m-POT-tuned masses are the fixed-s baselines.  Exact LP (eps = 0) everywhere except m-UOT.
+the m-POT-tuned masses are the fixed-s baselines.  Exact LP (eps = 0) everywhere except m-UOT,
+the `mpot_ent` reproduction rows and the partial-DA partial rules (PDA_EPS).
 """
 import json
 import os
@@ -187,13 +188,21 @@ def e4_matched(seeds=(1, 2, 3), with_=(), **_):
         warmed = "--warm_frac" in job.argv
         # with a warm-up, match the mass after it (the control gets the same warm-up)
         mean_s = summary["mean_s_late"] if warmed else summary["mean_s"]
-        extra = ["--warm_frac", "0.5"] if job.meta["proto"] == "pda" and not warmed else []
-        argv = _replace_rule(job.argv, ["--rule", "fixed", "--mass", f"{mean_s:.3f}", "--tag",
-                                        f"mm-{job.meta['method']}"] + extra)
-        jobs.append(Job(job.app, argv, job.hours / slow(job.meta["proto"], job.meta["method"]),
+        jobs.append(Job(job.app, matched_argv(job, mean_s), job.hours / slow(job.meta["proto"], job.meta["method"]),
                         label=job.label.replace(job.meta["method"], f"mm-{job.meta['method']}"),
                         meta=dict(job.meta, method=f"mm-{job.meta['method']}", matched_to=job.meta["method"])))
     return jobs
+
+
+def matched_argv(job, mean_s):
+    """argv of the fixed-mass control of an adaptive job: same protocol, mass mean_s.  On PDA it
+    gets the warm-up (a fixed mass from step 0 collapses) and the solver every PDA partial rule
+    uses; _replace_rule strips --eps, which would otherwise leave the control on the exact LP."""
+    pda = job.meta["proto"] == "pda"
+    extra = ["--warm_frac", "0.5"] if pda and "--warm_frac" not in job.argv else []
+    extra += ["--eps", PDA_EPS] if pda and PDA_EPS != "0" else []
+    return _replace_rule(job.argv, ["--rule", "fixed", "--mass", f"{mean_s:.3f}", "--tag",
+                                    f"mm-{job.meta['method']}"] + extra)
 
 
 def _replace_rule(argv, new_rule):

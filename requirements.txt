@@ -8,4 +8,6 @@ cvxpy==1.8.2
 torch==2.11.0
 torchvision==0.26.0
 tqdm==4.67.3
+scikit-learn==1.8.0
+scikit-image==0.26.0
 imageio

@@ -160,6 +160,21 @@ def test_run_naming_and_skip():
         assert os.path.exists(os.path.join(r.dir, "done.json"))
 
 
+def test_e4_control_solver_and_table_names():
+    """E4 controls keep the adaptive run's solver; tables keep mpot / mpot_ent, oracle / oracle_nw apart."""
+    root = os.path.join(os.path.dirname(__file__), "..")
+    sys.path[:0] = [os.path.join(root, "scripts"), os.path.join(root, "src", "analysis")]
+    import apps
+    import collect
+    import experiments
+    names = collect.plan_methods()
+    for j in experiments.e1_gonogo((1,)):
+        assert names[os.path.basename(apps.run_dir(j.app, j.argv))] == j.meta["method"], j.label
+        if j.meta["method"] in experiments.ADAPTIVE:
+            a, ctl = apps.parse(j.app, j.argv), apps.parse(j.app, experiments.matched_argv(j, 0.3))
+            assert (ctl.rule, ctl.mass, ctl.eps) == ("fixed", 0.3, a.eps), j.label
+
+
 if __name__ == "__main__":
     failed = 0
     for name, fn in sorted(globals().items()):

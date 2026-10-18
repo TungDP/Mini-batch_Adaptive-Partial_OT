@@ -50,12 +50,24 @@ def pid_alive(path):
         return False
 
 
+def free_gb(gpu):
+    """Free memory of a card as nvidia-smi reports it (other users' processes included)."""
+    out = subprocess.run(["nvidia-smi", "-i", gpu, "--query-gpu=memory.free", "--format=csv,noheader,nounits"],
+                         capture_output=True, text=True).stdout
+    try:
+        return float(out.strip()) / 1024
+    except ValueError:
+        return 0.0
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("exp", choices=list(EXPERIMENTS))
     p.add_argument("--gpus", default="0,1,2")
     p.add_argument("--per_gpu", type=int, default=1, help="concurrent GPU jobs per card (1 for ResNet-50 at m=65)")
     p.add_argument("--cpu_slots", type=int, default=8, help="concurrent CPU-only jobs (flow, color)")
+    p.add_argument("--min_free_gb", type=float, default=0,
+                   help="shared GPU: start a GPU job only if the card has this much free memory, one start per 90 s")
     p.add_argument("--seeds", default=None, help="comma list, overrides the experiment default")
     p.add_argument("--with", dest="with_", default="", help="optional extras: aot, celeba")
     p.add_argument("--only", default="", help="comma list of substrings; keep jobs whose label has any")
@@ -98,6 +110,7 @@ def main():
     free_gpu = [g for g in a.gpus.split(",") for _ in range(a.per_gpu)]
     free_cpu = a.cpu_slots
     running = []  # (proc, job, slot, t0, logfile)
+    t_gpu = 0.0  # last GPU start; a new job needs ~1 min to reach its peak memory
     try:
         while queue or running:
             for item in list(running):
@@ -119,8 +132,9 @@ def main():
                                 apps.run_dir(job.app, job.argv)])
                 print(f"[{time.strftime('%m-%d %H:%M')}] {'ok  ' if proc.returncode == 0 else 'FAIL'} {job.label}",
                       flush=True)
+            gate = a.min_free_gb <= 0 or (free_gpu and time.time() - t_gpu > 90 and free_gb(free_gpu[0]) >= a.min_free_gb)
             for job in list(queue):
-                if job.gpu and not free_gpu:
+                if job.gpu and (not free_gpu or not gate):
                     continue
                 if not job.gpu and free_cpu <= 0:
                     continue
@@ -128,6 +142,8 @@ def main():
                 slot = free_gpu.pop(0) if job.gpu else None
                 if slot is None:
                     free_cpu -= 1
+                else:
+                    t_gpu, gate = time.time(), a.min_free_gb <= 0
                 env = dict(os.environ, CUDA_VISIBLE_DEVICES=slot if slot is not None else "",
                            PYTHONUNBUFFERED="1", OMP_NUM_THREADS="4")
                 name = job.label.replace(":", "_").replace("/", "-")

@@ -43,6 +43,18 @@ def method_label(c):
     return r
 
 
+def plan_methods():
+    """Run directory name -> method name in scripts/experiments.py.  The config alone cannot tell
+    mpot from mpot_ent or oracle from oracle_nw (they differ only in eps / warm-up)."""
+    sys.path.insert(0, os.path.join(apps.REPO, "scripts"))
+    import experiments as E
+    # ponytail: default seeds only (E1 up to 3); runs launched with other --seeds fall back to method_label
+    jobs = E.e1_gonogo((1, 2, 3))
+    for name in ("E2", "E3", "PDACHECK", "E5", "E6"):
+        jobs += E.EXPERIMENTS[name](with_=("aot", "celeba"))
+    return {os.path.basename(apps.run_dir(j.app, j.argv)): j.meta["method"] for j in jobs}
+
+
 def benchmark_task(app, c):
     if app == "digits":
         return "digits", f"{c['source'][0].upper()}2{c['target'][0].upper()}"
@@ -73,7 +85,7 @@ def infer_app(c):
 
 
 def load(root):
-    rows = []
+    rows, plan = [], plan_methods()
     for done in glob.glob(os.path.join(root, "**", "done.json"), recursive=True):
         d = os.path.dirname(done)
         if not os.path.exists(os.path.join(d, "config.json")):
@@ -83,7 +95,8 @@ def load(root):
         app = infer_app(c)
         bench, task = benchmark_task(app, c)
         tag = c.get("tag") or ""
-        rows.append(dict(app=app, bench=bench, task=task, method=method_label(c), seed=c["seed"],
+        method = plan.get(os.path.basename(d)) or method_label(c)
+        rows.append(dict(app=app, bench=bench, task=task, method=method, seed=c["seed"],
                          tag="" if tag.startswith("mm-") else tag, run=os.path.basename(d), **r))
     return rows
 
